@@ -120,16 +120,18 @@ namespace NitroSharp.NsScript.VM
 
         private long Ticks => _clockBase + _clock.ElapsedTicks;
 
-        public bool IsRunning => _clock.IsRunning;
+        public bool IsRunning { get; private set; } = true;
         public bool IsTerminated => _threads.Count == 0 && PendingThreadActions.Count == 0;
 
         public void Suspend()
         {
+            IsRunning = false;
             _clock.Stop();
         }
 
         public void Resume()
         {
+            IsRunning = true;
             _clock.Start();
         }
 
@@ -140,6 +142,7 @@ namespace NitroSharp.NsScript.VM
                 CommitTerminateThread(thread);
             }
 
+            IsRunning = false;
             _clock.Stop();
             _threads.Clear();
             _newThreads.Clear();
