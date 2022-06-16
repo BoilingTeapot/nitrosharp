@@ -153,10 +153,10 @@ namespace NitroSharp.NsScript.VM
             _terminatedThreads.Clear();
             foreach (NsScriptThread thread in _threads.AsSpan())
             {
-                if (thread.SuspensionTime.HasValue && thread.SleepTimeout.HasValue)
+                if (thread.Suspended && thread.SleepTimeout.HasValue)
                 {
                     time ??= Ticks;
-                    long delta = time.Value - thread.SuspensionTime.Value;
+                    long delta = time.Value - thread.SuspensionTime!.Value;
                     if (delta >= thread.SleepTimeout)
                     {
                         CommitResumeThread(thread);
@@ -203,6 +203,7 @@ namespace NitroSharp.NsScript.VM
         internal void CommitSuspendThread(NsScriptThread thread, TimeSpan? timeoutOpt)
         {
             if (!IsRunning) { return; }
+            thread.Suspended = true;
             thread.SuspensionTime = Ticks;
             if (timeoutOpt is TimeSpan timeout)
             {
@@ -213,6 +214,7 @@ namespace NitroSharp.NsScript.VM
         private void CommitJoin(NsScriptThread thread, NsScriptThread target)
         {
             if (!IsRunning) { return; }
+            thread.Suspended = true;
             thread.SuspensionTime = Ticks;
             target.WaitingThread = thread;
         }
@@ -220,6 +222,7 @@ namespace NitroSharp.NsScript.VM
         private void CommitResumeThread(NsScriptThread thread)
         {
             if (!IsRunning) { return; }
+            thread.Suspended = false;
             thread.SleepTimeout = null;
             thread.SuspensionTime = null;
         }

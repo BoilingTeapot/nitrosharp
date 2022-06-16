@@ -9,6 +9,7 @@ namespace NitroSharp.NsScript.VM
     {
         internal ValueStack<CallFrame> CallFrameStack;
         internal ValueStack<ConstantValue> EvalStack;
+        internal bool Suspended = false;
         internal long? SuspensionTime;
         internal long? SleepTimeout;
         internal bool Yielded;
@@ -45,6 +46,7 @@ namespace NitroSharp.NsScript.VM
             Process = process;
             DeclaredId = dump.DeclaredId;
             EntryModule = dump.EntryModule;
+            Suspended = dump.Suspended;
             SuspensionTime = toTicksMaybe(dump.SuspensionTimeMs);
             SleepTimeout = toTicksMaybe(dump.SleepTimeoutMs);
 
@@ -74,7 +76,7 @@ namespace NitroSharp.NsScript.VM
         public string EntryModule { get; }
         public string CurrentModule => CurrentFrame.Module.Name;
         public bool DoneExecuting => CallFrameStack.Count == 0;
-        public bool IsActive => SuspensionTime is null;
+        public bool IsActive => !Suspended;
 
         internal ref CallFrame CurrentFrame => ref CallFrameStack.Peek();
 
@@ -96,6 +98,7 @@ namespace NitroSharp.NsScript.VM
                 EntryModule = EntryModule,
                 CallStack = toArray(ref CallFrameStack).Select(x => x.Dump()).ToArray(),
                 EvalStack = toArray(ref EvalStack),
+                Suspended = Suspended,
                 SuspensionTimeMs = fromTicksMaybe(SuspensionTime),
                 SleepTimeoutMs = fromTicksMaybe(SleepTimeout),
                 DialoguePage = DialoguePage?.Value,
@@ -143,6 +146,7 @@ namespace NitroSharp.NsScript.VM
         public string EntryModule { get; init; }
         public CallFrameDump[] CallStack { get; init; }
         public ConstantValue[] EvalStack { get; init; }
+        public bool Suspended { get; init; }
         public double? SuspensionTimeMs { get; init; }
         public double? SleepTimeoutMs { get; init; }
         public string? DialoguePage { get; init; }
