@@ -141,7 +141,7 @@ namespace NitroSharp.NsScript.VM
             process.AttachThread(thread);
             if (!start)
             {
-                process.CommitSuspendThread(thread, null);
+                process.CommitSuspendThread(thread);
             }
             return thread;
         }
@@ -178,10 +178,10 @@ namespace NitroSharp.NsScript.VM
             return new NsScriptThread(++_lastThreadId, ref frame);
         }
 
-        public void SuspendThread(NsScriptThread thread, TimeSpan? timeout = null)
+        public void SuspendThread(NsScriptThread thread)
         {
             thread.Process.PendingThreadActions
-                .Enqueue(ThreadAction.Suspend(thread, timeout));
+                .Enqueue(ThreadAction.Suspend(thread));
         }
 
         public void Join(NsScriptThread callingThread, NsScriptThread targetThread)

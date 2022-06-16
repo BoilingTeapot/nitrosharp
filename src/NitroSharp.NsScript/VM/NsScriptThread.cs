@@ -10,8 +10,6 @@ namespace NitroSharp.NsScript.VM
         internal ValueStack<CallFrame> CallFrameStack;
         internal ValueStack<ConstantValue> EvalStack;
         internal bool Suspended = false;
-        internal long? SuspensionTime;
-        internal long? SleepTimeout;
         internal bool Yielded;
         internal EntityPath? DialoguePage;
         internal bool SelectResult;
@@ -36,19 +34,11 @@ namespace NitroSharp.NsScript.VM
                 return new CallFrame(module, dump.Subroutine, dump.PC);
             }
 
-            static long? toTicksMaybe(double? ms)
-            {
-                if (ms is null) { return null; }
-                return (long)Math.Round(Stopwatch.Frequency / 1000.0d * ms.Value);
-            }
-
             Id = dump.Id;
             Process = process;
             DeclaredId = dump.DeclaredId;
             EntryModule = dump.EntryModule;
             Suspended = dump.Suspended;
-            SuspensionTime = toTicksMaybe(dump.SuspensionTimeMs);
-            SleepTimeout = toTicksMaybe(dump.SleepTimeoutMs);
 
             EvalStack = new ValueStack<ConstantValue>(8);
             foreach (ConstantValue value in dump.EvalStack)
@@ -85,12 +75,6 @@ namespace NitroSharp.NsScript.VM
             static T[] toArray<T>(ref ValueStack<T> stack) where T : struct
                 => stack.AsSpan().ToArray();
 
-            static double? fromTicksMaybe(long? ticks)
-            {
-                if (ticks is null) { return null; }
-                return ticks.Value / (double)Stopwatch.Frequency * 1000.0d;
-            }
-
             return new NsScriptThreadDump
             {
                 Id = Id,
@@ -99,8 +83,6 @@ namespace NitroSharp.NsScript.VM
                 CallStack = toArray(ref CallFrameStack).Select(x => x.Dump()).ToArray(),
                 EvalStack = toArray(ref EvalStack),
                 Suspended = Suspended,
-                SuspensionTimeMs = fromTicksMaybe(SuspensionTime),
-                SleepTimeoutMs = fromTicksMaybe(SleepTimeout),
                 DialoguePage = DialoguePage?.Value,
                 SelectResult = SelectResult,
                 WaitingThread = WaitingThread?.Id
@@ -147,8 +129,6 @@ namespace NitroSharp.NsScript.VM
         public CallFrameDump[] CallStack { get; init; }
         public ConstantValue[] EvalStack { get; init; }
         public bool Suspended { get; init; }
-        public double? SuspensionTimeMs { get; init; }
-        public double? SleepTimeoutMs { get; init; }
         public string? DialoguePage { get; init; }
         public bool SelectResult { get; init; }
         public uint? WaitingThread { get; init; }
