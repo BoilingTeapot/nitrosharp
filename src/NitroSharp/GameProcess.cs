@@ -155,6 +155,16 @@ namespace NitroSharp
             FontConfig = FontConfig
         };
 
+        public void Suspend()
+        {
+            VmProcess.Suspend();
+        }
+
+        public void Resume()
+        {
+            VmProcess.Resume();
+        }
+
         public void Dispose()
         {
             VmProcess.Terminate();

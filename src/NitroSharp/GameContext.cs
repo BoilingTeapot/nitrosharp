@@ -495,7 +495,7 @@ namespace NitroSharp
                 {
                     sysProc.Dispose();
                     SysProcess = null;
-                    MainProcess.VmProcess.Resume();
+                    MainProcess.Resume();
                     continue;
                 }
 
@@ -625,7 +625,7 @@ namespace NitroSharp
             {
                 LastScreenshot ??= RenderContext.CreateFullscreenTexture(staging: true);
                 RenderContext.CaptureFramebuffer(LastScreenshot);
-                MainProcess.VmProcess.Suspend();
+                MainProcess.Suspend();
                 SysProcess = CreateProcess(VM, mainModule, _fontConfig);
                 _clearFramebuffer = false;
             }
@@ -655,13 +655,13 @@ namespace NitroSharp
 
             if (resumeProcess)
             {
-                ActiveProcess.VmProcess.Resume();
+                ActiveProcess.Resume();
             }
         }
 
         internal void Defer(in DeferredOperation operation)
         {
-            ActiveProcess.VmProcess.Suspend();
+            ActiveProcess.Suspend();
             _deferredOperations.Enqueue(operation);
         }
 
