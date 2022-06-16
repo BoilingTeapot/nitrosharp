@@ -1,10 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using NitroSharp.Graphics;
 using NitroSharp.NsScript;
 using NitroSharp.NsScript.VM;
 using NitroSharp.Saving;
+using NitroSharp.Utilities;
 using Veldrid;
 
 namespace NitroSharp
@@ -27,21 +29,29 @@ namespace NitroSharp
     {
         public readonly NsScriptThread Thread;
         public readonly WaitCondition Condition;
+        public readonly long? Deadline;
         public readonly EntityQuery? EntityQuery;
 
         public WaitOperation(
             NsScriptThread thread,
             WaitCondition condition,
+            long? deadline,
             EntityQuery? entityQuery)
         {
             Thread = thread;
             Condition = condition;
+            Deadline = deadline;
             EntityQuery = entityQuery;
         }
 
         public WaitOperation(NsScriptProcess vmProcess, in WaitOperationSaveData saveData)
         {
             Condition = saveData.WaitCondition;
+            Deadline = null;
+            if (saveData.DeadlineTicks is long deadlineTicks)
+            {
+                Deadline = deadlineTicks * Stopwatch.Frequency / TimeSpan.TicksPerSecond;
+            }
             EntityQuery = null;
             if (saveData.EntityQuery is string entityQuery)
             {
@@ -57,24 +67,38 @@ namespace NitroSharp
             query = EntityQuery;
         }
 
-        public WaitOperationSaveData ToSaveData() => new()
+        public WaitOperationSaveData ToSaveData()
         {
-            ThreadId = Thread.Id,
-            EntityQuery = EntityQuery?.Value,
-            WaitCondition = Condition
-        };
+            long? deadlineTicks = null;
+            if (Deadline is long deadline)
+            {
+                deadlineTicks = MathUtil.MulDiv(deadline, TimeSpan.TicksPerSecond, Stopwatch.Frequency);
+            }
+
+            return new WaitOperationSaveData
+            {
+                ThreadId = Thread.Id,
+                EntityQuery = EntityQuery?.Value,
+                WaitCondition = Condition,
+                DeadlineTicks = deadlineTicks
+            };
+        }
     }
 
     internal sealed class GameProcess
     {
         private readonly Dictionary<uint, WaitOperation> _waitOperations = new();
         private readonly Queue<NsScriptThread> _threadsToResume = new();
+        private readonly Stopwatch _clock;
+        private readonly long _clockBase;
 
         public GameProcess(NsScriptProcess vmProcess, FontConfiguration fontConfig)
         {
             VmProcess = vmProcess;
             World = new World();
             FontConfig = fontConfig;
+            _clockBase = 0;
+            _clock = Stopwatch.StartNew();
         }
 
         public GameProcess(NsScriptProcess vmProcess, World world, FontConfiguration fontConfig)
@@ -82,6 +106,8 @@ namespace NitroSharp
             VmProcess = vmProcess;
             World = world;
             FontConfig = fontConfig;
+            _clockBase = 0;
+            _clock = Stopwatch.StartNew();
         }
 
         public GameProcess(
@@ -108,11 +134,16 @@ namespace NitroSharp
             {
                 _waitOperations[waitOp.ThreadId] = new WaitOperation(VmProcess, waitOp);
             }
+
+            _clockBase = MathUtil.MulDiv(saveData.ClockBaseTicks, Stopwatch.Frequency, TimeSpan.TicksPerSecond);
+            _clock = Stopwatch.StartNew();
         }
 
         public NsScriptProcess VmProcess { get; }
         public World World { get; }
         public FontConfiguration FontConfig { get; }
+
+        private long Ticks => _clockBase + _clock.ElapsedTicks;
 
         public void Wait(
             NsScriptThread thread,
@@ -120,11 +151,13 @@ namespace NitroSharp
             TimeSpan? timeout = null,
             EntityQuery? entityQuery = null)
         {
-            VmProcess.VM.SuspendThread(thread, timeout);
-            if (condition != WaitCondition.None)
+            VmProcess.VM.SuspendThread(thread);
+            long? deadline = null;
+            if (timeout is TimeSpan time)
             {
-                _waitOperations[thread.Id] = new WaitOperation(thread, condition, entityQuery);
+                deadline = Ticks + MathUtil.MulDiv(time.Ticks, Stopwatch.Frequency, TimeSpan.TicksPerSecond);
             }
+            _waitOperations[thread.Id] = new WaitOperation(thread, condition, deadline, entityQuery);
         }
 
         public void ProcessWaitOperations(GameContext ctx)
@@ -152,16 +185,19 @@ namespace NitroSharp
                 .Select(x => x.ToSaveData())
                 .ToArray(),
             VmProcessDump = VmProcess.Dump(),
-            FontConfig = FontConfig
+            FontConfig = FontConfig,
+            ClockBaseTicks = MathUtil.MulDiv(_clockBase, TimeSpan.TicksPerSecond, Stopwatch.Frequency)
         };
 
         public void Suspend()
         {
+            _clock.Stop();
             VmProcess.Suspend();
         }
 
         public void Resume()
         {
+            _clock.Start();
             VmProcess.Resume();
         }
 
@@ -173,6 +209,11 @@ namespace NitroSharp
 
         private bool ShouldResume(in WaitOperation wait, GameContext ctx)
         {
+            if (Ticks >= wait.Deadline)
+            {
+                return true;
+            }
+
             uint contextId = wait.Thread.Id;
 
             bool checkInput() => ctx.Advance || ctx.Skipping;
@@ -210,6 +251,7 @@ namespace NitroSharp
 
             return wait switch
             {
+                (WaitCondition.None, _) => false,
                 (WaitCondition.UserInput, _) => checkInput(),
                 (WaitCondition.EntityIdle, { } query) => checkIdle(query),
                 (WaitCondition.FadeCompleted, { } query) => checkAnim(query, AnimationKind.Fade),
@@ -231,6 +273,7 @@ namespace NitroSharp
         public WorldSaveData World { get; init; }
         public WaitOperationSaveData[] WaitOperations { get; init; }
         public FontConfiguration FontConfig { get; init; }
+        public long ClockBaseTicks { get; init; }
     }
 
     [Persistable]
@@ -238,6 +281,7 @@ namespace NitroSharp
     {
         public uint ThreadId { get; init; }
         public WaitCondition WaitCondition { get; init; }
+        public long? DeadlineTicks { get; init; }
         public string? EntityQuery { get; init; }
     }
 }

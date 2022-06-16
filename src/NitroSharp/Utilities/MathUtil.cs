@@ -1,4 +1,6 @@
-﻿namespace NitroSharp.Utilities
+﻿using System.Numerics;
+
+namespace NitroSharp.Utilities
 {
     internal static class MathUtil
     {
@@ -33,6 +35,14 @@
             res |= res >> 8;
             res |= res >> 16;
             return res + 1;
+        }
+
+        public static long MulDiv(long value, long numerator, long denominator)
+        {
+            BigInteger res = value;
+            res *= numerator;
+            res /= denominator;
+            return (long)res;
         }
     }
 }
